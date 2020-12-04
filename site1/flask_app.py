@@ -3,25 +3,44 @@
 
 from flask import Flask, request, session, make_response, render_template
 import processing
-import pandas as pd
+import pandas
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
 app.config["SECRET_KEY"] = 'warfhjwoiuj348'
 
 
-@app.route("/forecast", methods=["GET","POST"])
-def forecast():
+@app.route('/forecast', methods =["GET","POST"])
+def home():
 
     if request.method =="POST":
-        data = pd.read_csv(request.files.get('input'))
-        col_number = int(request.form["date_column"])
+        data = pandas.read_csv(request.files.get('input'))
+        seasonality = 4
+        forecast_horizon = 8
+        date_col = int(request.form["date_column"])-1
+        value_col = int(request.form["value_column"])-1
 
-        data.iloc[:,col_number] = pd.to_datetime(data.iloc[:,col_number])
+        data.iloc[:,date_col] = pandas.to_datetime(data.iloc[:,date_col])
+        data_train = data.iloc[:-8,value_col]
+        data_test = data.iloc[-8:,value_col]
+        predictions = data_test.copy()
 
-        img = processing.plot_scatter(data.iloc[:,0], data.iloc[:,1])
+        naive_fit = processing.seasonal_naive(data_train, seasonality, forecast_horizon)[0]
+        naive_forecast = processing.seasonal_naive(data_train, seasonality, forecast_horizon)[1]
+        naive_residuals = data_train - naive_fit
+        naive_residual_checks = processing.residual_checks(naive_residuals.dropna(), seasonality)
 
-        return render_template('view.html', tab=data.to_html(classes='onlyone'), image=img.decode('utf8'),number=col_number)
+
+
+        img = processing.plot_scatter(data.iloc[:, 0], data.iloc[:, 1])
+        img2 = processing.plot_scatter(naive_fit.index.array, naive_fit)
+
+        return render_template('view.html',
+                               tab=data.to_html(classes='onlyone'),
+                               image=img.decode('utf8'),
+                               image2=img2.decode('utf8'),
+                               tab2=naive_residual_checks.to_html(classes='onlyone',index=False)
+                               )
 
     return '''
         <html>
@@ -29,7 +48,8 @@ def forecast():
                 <p>Select the file that you want to calculate:</p>
                 <form method="post" action="/forecast" enctype="multipart/form-data">
                     <p><input type="file" name="input"/></p>
-                    <p><input name="date_column" value="Input the column number for date column"/></p>
+                    <p>Date column number: <input name="date_column"/></p>
+                    <p>Value column number: <input name="value_column"/></p>
                     <p><input type="submit" value="Submit"/></>
                 </form>
             </body>
@@ -39,8 +59,8 @@ def forecast():
 
 
 
-@app.route("/", methods=["GET","POST"])
-def intput_output_page():
+@app.route("/sumfile", methods=["GET","POST"])
+def sumfile_page():
     if request.method == "POST":
         submission = request.files["submission"]
         input_data = submission.stream.read().decode("utf-8")
@@ -53,7 +73,7 @@ def intput_output_page():
         <html>
             <body>
                 <p>Select the file that you want to sum up:</p>
-                <form method="post" action="." enctype="multipart/form-data">
+                <form method="post" action="/sumfile" enctype="multipart/form-data">
                     <p><input type="file" name="submission"/></p>
                     <p><input type="submit" value="Process the file"/></>
                 </form>
@@ -66,9 +86,9 @@ def intput_output_page():
 
 
 
+'''Sum page - to add up multiple different user supplied inputs'''
 
-
-@app.route("/list2", methods=["GET","POST"])
+@app.route("/sum", methods=["GET","POST"])
 def list_page():
     errors = ""
     if "inputs" not in session:
@@ -90,7 +110,7 @@ def list_page():
 
 
 
-        if request.form["action"] == "Do calculation":
+        if request.form["action"] == "Calculate sum":
             result = processing.calculate_mean(session["inputs"])
             session["inputs"].clear() # how does inputs clearing solve the reset issue?
             session.modified = True
@@ -98,7 +118,7 @@ def list_page():
                 <html>
                     <body>
                         <p>{result}</p>
-                        <p><a href="/list2">Click here to start again</a>
+                        <p><a href="/sum">Click here to start again</a>
                     </body>
                 </html>
             '''.format(result=result)
@@ -109,10 +129,10 @@ def list_page():
                 {previous}
                 {errors}
                 <p>Enter your number:</p>
-                <form method="post" action="/list2">
+                <form method="post" action="/sum">
                     <p><input name="user_input" /></p>
                     <p><input type="submit" name="action" value="Add number" /></p>
-                    <p><input type="submit" name="action" value="Do calculation" /></p>
+                    <p><input type="submit" name="action" value="Calculate sum" /></p>
                 </form>
             </body>
         </html>
@@ -120,23 +140,10 @@ def list_page():
 
 
 
+'''Average page - for finding the average of two numbers'''
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@app.route("/list", methods=["GET", "POST"])
-def hello_world():
+@app.route("/average", methods=["GET", "POST"])
+def average_page():
 
     errors = ""
     if request.method =="POST":
@@ -167,7 +174,7 @@ def hello_world():
             <body>
                 {errors}
                 <p>Enter your numbers:</p>
-                <form method="post" action="/list">
+                <form method="post" action="/average">
                     <p><input name="numberA" /></p>
                     <p><input name="number2" /></p>
                     <p><input type="submit" value="Do calculation" /></p>
@@ -175,6 +182,7 @@ def hello_world():
             </body>
         </html>
     '''.format(errors=errors)
+
 
 
 
