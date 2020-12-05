@@ -4,6 +4,8 @@
 from flask import Flask, request, session, make_response, render_template
 import processing
 import pandas
+import statsmodels.api
+import numpy
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
@@ -18,19 +20,17 @@ def home():
 
         # Read the file and initiate parameters for forecasting
         input_file = pandas.read_csv(request.files.get('input'))
-#        input_file = pandas.read_csv('data.csv')
         seasonality = 4
-        forecast_timeframe = 8
+        forecast_timeframe = 16
 
         # Retrieve only the Date and Value columns and set Date as Index
         date_col = int(request.form["date_column"])-1
         value_col = int(request.form["value_column"])-1
-#        date_col = 0
-#        value_col = 1
         data = input_file[[input_file.columns[date_col], input_file.columns[value_col]]]
         data.columns = ['Date','Value']
         data['Date'] = pandas.to_datetime(data['Date'])
         data = data.set_index('Date')
+        data.index.freq = 'Q'
 
         # Splitting the training and test datasets
         data_train_df = data.iloc[:-forecast_timeframe]
@@ -46,20 +46,34 @@ def home():
         residuals_df['Naive'] = data_train_df['Value'] - fit_df['Naive']
         naive_residual_checks_table = processing.residual_checks(residuals_df['Naive'].dropna(), seasonality)
 
+        # Compute ETS Log AdA forecast
+        data_train_log = numpy.log(data_train_df['Value'])
+        ETS = statsmodels.api.tsa.statespace.ExponentialSmoothing(data_train_log, trend=True, initialization_method='heuristic',
+                                                          seasonal=seasonality, damped_trend=True).fit()
+        fit_df['ETS'] = numpy.exp(ETS.fittedvalues)
+        forecast_df['ETS'] = numpy.exp(ETS.forecast(forecast_timeframe))
+        residuals_df['ETS'] = data_train_df['Value'] - fit_df['ETS']
+        ETS_residual_checks_table = processing.residual_checks(residuals_df['ETS'].dropna(), seasonality)
+
+
 
         # Generate forecast line plots
-        img = processing.plot_line(data_train_df.index.array,data_train_df['Value'],
+        naive_img = processing.plot_line(data_train_df.index.array,data_train_df['Value'],
                                    data_test_df.index.array,data_test_df['Value'],
                                    fit_df.index.array,fit_df['Naive'],
                                    forecast_df.index.array,forecast_df['Naive'])
 
-        img2 = processing.plot_scatter(fit_df.index, fit_df['Value'])
+        ETS_img = processing.plot_line(data_train_df.index.array,data_train_df['Value'],
+                                   data_test_df.index.array,data_test_df['Value'],
+                                   fit_df.index.array,fit_df['ETS'],
+                                   forecast_df.index.array,forecast_df['ETS'])
 
         return render_template('view.html',
                                tab=data.to_html(classes='onlyone'),
-                               image=img.decode('utf8'),
-                               image2=img2.decode('utf8'),
-                               tab2=naive_residual_checks_table.to_html(classes='onlyone',index=False)
+                               image=naive_img.decode('utf8'),
+                               image2=ETS_img.decode('utf8'),
+                               tab2=naive_residual_checks_table.to_html(classes='onlyone',index=False),
+                               tab3=ETS_residual_checks_table.to_html(classes='onlyone', index=False)
                                )
 
     return '''
