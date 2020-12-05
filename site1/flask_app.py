@@ -13,33 +13,53 @@ app.config["SECRET_KEY"] = 'warfhjwoiuj348'
 @app.route('/forecast', methods =["GET","POST"])
 def home():
 
+    # if method is post, then read the submitted file and calculate forecast results
     if request.method =="POST":
-        data = pandas.read_csv(request.files.get('input'))
+
+        # Read the file and initiate parameters for forecasting
+        input_file = pandas.read_csv(request.files.get('input'))
+#        input_file = pandas.read_csv('data.csv')
         seasonality = 4
-        forecast_horizon = 8
+        forecast_timeframe = 8
+
+        # Retrieve only the Date and Value columns and set Date as Index
         date_col = int(request.form["date_column"])-1
         value_col = int(request.form["value_column"])-1
+#        date_col = 0
+#        value_col = 1
+        data = input_file[[input_file.columns[date_col], input_file.columns[value_col]]]
+        data.columns = ['Date','Value']
+        data['Date'] = pandas.to_datetime(data['Date'])
+        data = data.set_index('Date')
 
-        data.iloc[:,date_col] = pandas.to_datetime(data.iloc[:,date_col])
-        data_train = data.iloc[:-8,value_col]
-        data_test = data.iloc[-8:,value_col]
-        predictions = data_test.copy()
+        # Splitting the training and test datasets
+        data_train_df = data.iloc[:-forecast_timeframe]
+        data_test_df = data.iloc[-forecast_timeframe:]
+        forecast_df = data_test_df.copy()
+        fit_df = data_train_df.copy()
+        residuals_df = data_train_df.copy()
 
-        naive_fit = processing.seasonal_naive(data_train, seasonality, forecast_horizon)[0]
-        naive_forecast = processing.seasonal_naive(data_train, seasonality, forecast_horizon)[1]
-        naive_residuals = data_train - naive_fit
-        naive_residual_checks = processing.residual_checks(naive_residuals.dropna(), seasonality)
+        # Compute naive forecasts
+        fit_df['Naive'] = processing.seasonal_naive(data_train_df['Value'], seasonality, forecast_timeframe)[0]
+        forecast_df['Naive'] = processing.seasonal_naive(data_train_df['Value'], seasonality, forecast_timeframe)[1].values
+
+        residuals_df['Naive'] = data_train_df['Value'] - fit_df['Naive']
+        naive_residual_checks_table = processing.residual_checks(residuals_df['Naive'].dropna(), seasonality)
 
 
+        # Generate forecast line plots
+        img = processing.plot_line(data_train_df.index.array,data_train_df['Value'],
+                                   data_test_df.index.array,data_test_df['Value'],
+                                   fit_df.index.array,fit_df['Naive'],
+                                   forecast_df.index.array,forecast_df['Naive'])
 
-        img = processing.plot_scatter(data.iloc[:, 0], data.iloc[:, 1])
-        img2 = processing.plot_scatter(naive_fit.index.array, naive_fit)
+        img2 = processing.plot_scatter(fit_df.index, fit_df['Value'])
 
         return render_template('view.html',
                                tab=data.to_html(classes='onlyone'),
                                image=img.decode('utf8'),
                                image2=img2.decode('utf8'),
-                               tab2=naive_residual_checks.to_html(classes='onlyone',index=False)
+                               tab2=naive_residual_checks_table.to_html(classes='onlyone',index=False)
                                )
 
     return '''

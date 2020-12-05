@@ -12,7 +12,8 @@ from scipy.stats import jarque_bera
 import statsmodels.api as statsmodels
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
-
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
 
 '''Defining mean average percentage error'''
 def MAPE(y_obs, y_pred):
@@ -85,7 +86,22 @@ def residual_checks(residuals,seasonal_period):
 
 def plot_scatter(x,y):
     plot.clf()
-    plot.scatter(x, y, alpha=0.5)
+    plot.scatter(x, y)
+
+    img = BytesIO()
+    plot.savefig(img, format='png')
+    img.seek(0)
+    img_png = base64.b64encode(img.getvalue())
+    return img_png
+
+def plot_line(train_x,train_y,test_x,test_y,fit_x,fit_y,forecast_x,forecast_y):
+
+    plot.clf()
+    plot.plot(train_x, train_y, label = 'Training set', color='blue')
+    plot.plot(test_x,test_y, label = 'Test set',linestyle='--',marker = '.', color='blue')
+    plot.plot(fit_x,fit_y,color='red', label = 'Fit')
+    plot.plot(forecast_x,forecast_y,color='red',linestyle='--',marker = '.',label = 'Forecast')
+    plot.legend()
 
     img = BytesIO()
     plot.savefig(img, format='png')
