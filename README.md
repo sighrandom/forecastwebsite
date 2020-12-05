@@ -2,4 +2,4 @@
 # Effectively 3 parts:
 # Part 1: the flask_app.py hosts the main webpage code that's written using flask and published through pythonanywhere.com
 # Part 2: the processing.py hosts all the forecasting, testing and image generation functions
-# Part 3: although not initially ended, simple HTML templates and CSS styling have also been used
+# Part 3: although not initially intended, simple HTML templates and CSS styling have also been used because using pre-made templates didn't really help me understand anything and actually made things more confusing...
