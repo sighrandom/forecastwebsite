@@ -29,12 +29,9 @@ def RMSE(y_obs,y_pred):
 
 '''Return RMSE and MAPE in a dataframe'''
 def accuracy(y_obs,y_pred):
-    accuracy_data = pandas.DataFrame()
     rmserror = numpy.round(RMSE(y_obs,y_pred),1)
     maperror = numpy.round(MAPE(y_obs,y_pred),1)
-    accuracy_data = accuracy_data.append({"RMSE":rmserror, "%MAPE":maperror}, ignore_index=True)
-
-    return accuracy_data
+    return maperror, rmserror
 
 '''Calculate naive seasonal forecast by taking the last seasonal cycle and replicating it over the forecast_horizon'''
 def seasonal_naive(training_data,seasonal_period,forecast_horizon):

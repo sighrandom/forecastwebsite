@@ -6,6 +6,7 @@ import processing
 import pandas
 import statsmodels.api
 import numpy
+import pmdarima
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
@@ -30,7 +31,7 @@ def home():
         data.columns = ['Date','Value']
         data['Date'] = pandas.to_datetime(data['Date'])
         data = data.set_index('Date')
-        data.index.freq = 'Q'
+        data.index.freq = pandas.infer_freq(data.index)
 
         # Splitting the training and test datasets
         data_train_df = data.iloc[:-forecast_timeframe]
@@ -38,22 +39,48 @@ def home():
         forecast_df = data_test_df.copy()
         fit_df = data_train_df.copy()
         residuals_df = data_train_df.copy()
+        accuracy_df = pandas.DataFrame(index=['MAPE','RMSE'])
 
         # Compute naive forecasts
         fit_df['Naive'] = processing.seasonal_naive(data_train_df['Value'], seasonality, forecast_timeframe)[0]
         forecast_df['Naive'] = processing.seasonal_naive(data_train_df['Value'], seasonality, forecast_timeframe)[1].values
-
         residuals_df['Naive'] = data_train_df['Value'] - fit_df['Naive']
+        accuracy_df['Naive'] = processing.accuracy(data_test_df['Value'],forecast_df['Naive'])
         naive_residual_checks_table = processing.residual_checks(residuals_df['Naive'].dropna(), seasonality)
 
         # Compute ETS Log AdA forecast
         data_train_log = numpy.log(data_train_df['Value'])
         ETS = statsmodels.api.tsa.statespace.ExponentialSmoothing(data_train_log, trend=True, initialization_method='heuristic',
                                                           seasonal=seasonality, damped_trend=True).fit()
+
         fit_df['ETS'] = numpy.exp(ETS.fittedvalues)
         forecast_df['ETS'] = numpy.exp(ETS.forecast(forecast_timeframe))
         residuals_df['ETS'] = data_train_df['Value'] - fit_df['ETS']
+        accuracy_df['ETS'] = processing.accuracy(data_test_df['Value'],forecast_df['ETS'])
         ETS_residual_checks_table = processing.residual_checks(residuals_df['ETS'].dropna(), seasonality)
+
+        # Compute SARIMA forecast
+        SARIMA_AIC_test = pmdarima.auto_arima(data_train_df['Value'],
+                                              seasonal=True,
+                                              m=seasonality,
+                                              d=1,
+                                              information_criterion='aicc')
+        SARIMA_model = statsmodels.tsa.statespace.sarimax.SARIMAX(endog=data_train_df['Value'],
+                                                                  order = SARIMA_AIC_test.order,
+                                                                  seasonal_order= SARIMA_AIC_test.seasonal_order,
+                                                                  trend='c',
+                                                                  enforce_invertibility=False)
+        SARIMA_fit = SARIMA_model.fit()
+
+        fit_df['SARIMA'] = SARIMA_fit.fittedvalues
+        forecast_df['SARIMA'] = SARIMA_fit.predict(len(data_train_df),
+                                                   len(data_train_df)+forecast_timeframe-1,
+                                                   dynamic=False)
+        residuals_df['SARIMA'] = data_train_df['Value'] - fit_df['SARIMA']
+        accuracy_df['SARIMA'] = processing.accuracy(data_test_df['Value'],forecast_df['SARIMA'])
+        SARIMA_residual_checks_table = processing.residual_checks(residuals_df['SARIMA'].dropna(), seasonality)
+
+
 
 
 
@@ -68,12 +95,20 @@ def home():
                                    fit_df.index.array,fit_df['ETS'],
                                    forecast_df.index.array,forecast_df['ETS'])
 
+        SARIMA_img = processing.plot_line(data_train_df.index.array,data_train_df['Value'],
+                                   data_test_df.index.array,data_test_df['Value'],
+                                   fit_df.index.array,fit_df['SARIMA'],
+                                   forecast_df.index.array,forecast_df['SARIMA'])
+
         return render_template('view.html',
                                tab=data.to_html(classes='onlyone'),
+                               tab5=accuracy_df.to_html(classes='onlyone'),
                                image=naive_img.decode('utf8'),
                                image2=ETS_img.decode('utf8'),
+                               image3=SARIMA_img.decode('utf8'),
                                tab2=naive_residual_checks_table.to_html(classes='onlyone',index=False),
-                               tab3=ETS_residual_checks_table.to_html(classes='onlyone', index=False)
+                               tab3=ETS_residual_checks_table.to_html(classes='onlyone', index=False),
+                               tab4=SARIMA_residual_checks_table.to_html(classes='onlyone', index=False)
                                )
 
     return '''
