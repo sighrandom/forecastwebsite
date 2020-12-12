@@ -12,18 +12,34 @@
             </div>
             <div id="content">
                 <div id="table">
-                    <h2>Table of data</h2>
+                    <h2>Loaded data</h2>
                     {{ tab|safe }}
                 </div>
                 <div id="graph">
-                    <h2>Graph of inputs </h2>
-                    {{ tab5|safe }}
-                    {{ tab2|safe }}
-                    <img src="data:image/png;base64,{{ image }}"\>
-                    {{ tab3|safe }}
-                    <img src="data:image/png;base64,{{ image2 }}"\>
-                    {{ tab4|safe }}
-                    <img src="data:image/png;base64,{{ image3 }}"\>
+                    <h2>Final Forecast</h2>
+                    {{ tab_final|safe }}
+                    <img src="data:image/png;base64,{{ image4 }}"\>
+
+
+
+
+
+                </div>
+                <div id="models">
+                    <h2>Individual model tests</h2>
+                    <p>{{ tab5|safe }}</p>
+
+                    <h3>Naive seasonal</h3>
+                    <p>{{ tab2|safe }}
+                        <img src="data:image/png;base64,{{ image }}"\></p>
+
+                    <h3>ETS(A,Ad,A) with log</h3>
+                    <p>{{ tab3|safe }}
+                        <img src="data:image/png;base64,{{ image2 }}"\></p>
+
+                    <h3>SARIMA</h3>
+                    <p>{{ tab4|safe }}
+                        <img src="data:image/png;base64,{{ image3 }}"\></p>
 
 
                 </div>

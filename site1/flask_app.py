@@ -22,11 +22,13 @@ def home():
         # Read the file and initiate parameters for forecasting
         input_file = pandas.read_csv(request.files.get('input'))
         seasonality = 4
-        forecast_timeframe = 16
+        forecast_timeframe = 8
 
         # Retrieve only the Date and Value columns and set Date as Index
-        date_col = int(request.form["date_column"])-1
-        value_col = int(request.form["value_column"])-1
+#        date_col = int(request.form["date_column"])-1
+#        value_col = int(request.form["value_column"])-1
+        date_col = 0
+        value_col = 1
         data = input_file[[input_file.columns[date_col], input_file.columns[value_col]]]
         data.columns = ['Date','Value']
         data['Date'] = pandas.to_datetime(data['Date'])
@@ -36,10 +38,19 @@ def home():
         # Splitting the training and test datasets
         data_train_df = data.iloc[:-forecast_timeframe]
         data_test_df = data.iloc[-forecast_timeframe:]
+
+        # Initialising dataframes for storing model assessment outputs
         forecast_df = data_test_df.copy()
         fit_df = data_train_df.copy()
         residuals_df = data_train_df.copy()
         accuracy_df = pandas.DataFrame(index=['MAPE','RMSE'])
+
+        # Initialising dataframe for storing final output
+        final_df = pandas.DataFrame(index=pandas.date_range(start=max(data.index),
+                                                            periods=forecast_timeframe+1,
+                                                            freq=data.index.freq)).iloc[-forecast_timeframe:]
+
+
 
         # Compute naive forecasts
         fit_df['Naive'] = processing.seasonal_naive(data_train_df['Value'], seasonality, forecast_timeframe)[0]
@@ -48,16 +59,22 @@ def home():
         accuracy_df['Naive'] = processing.accuracy(data_test_df['Value'],forecast_df['Naive'])
         naive_residual_checks_table = processing.residual_checks(residuals_df['Naive'].dropna(), seasonality)
 
+        final_df['Naive'] = processing.seasonal_naive(data['Value'],seasonality,forecast_timeframe)[1].values
+
         # Compute ETS Log AdA forecast
         data_train_log = numpy.log(data_train_df['Value'])
         ETS = statsmodels.api.tsa.statespace.ExponentialSmoothing(data_train_log, trend=True, initialization_method='heuristic',
                                                           seasonal=seasonality, damped_trend=True).fit()
-
         fit_df['ETS'] = numpy.exp(ETS.fittedvalues)
         forecast_df['ETS'] = numpy.exp(ETS.forecast(forecast_timeframe))
         residuals_df['ETS'] = data_train_df['Value'] - fit_df['ETS']
         accuracy_df['ETS'] = processing.accuracy(data_test_df['Value'],forecast_df['ETS'])
         ETS_residual_checks_table = processing.residual_checks(residuals_df['ETS'].dropna(), seasonality)
+
+        data_log = numpy.log(data['Value'])
+        ETS_final = statsmodels.api.tsa.statespace.ExponentialSmoothing(data_log, trend=True, initialization_method='heuristic',
+                                                          seasonal=seasonality, damped_trend=True).fit()
+        final_df['ETS'] = numpy.exp(ETS_final.forecast(forecast_timeframe))
 
         # Compute SARIMA forecast
         SARIMA_AIC_test = pmdarima.auto_arima(data_train_df['Value'],
@@ -71,7 +88,6 @@ def home():
                                                                   trend='c',
                                                                   enforce_invertibility=False)
         SARIMA_fit = SARIMA_model.fit()
-
         fit_df['SARIMA'] = SARIMA_fit.fittedvalues
         forecast_df['SARIMA'] = SARIMA_fit.predict(len(data_train_df),
                                                    len(data_train_df)+forecast_timeframe-1,
@@ -80,8 +96,19 @@ def home():
         accuracy_df['SARIMA'] = processing.accuracy(data_test_df['Value'],forecast_df['SARIMA'])
         SARIMA_residual_checks_table = processing.residual_checks(residuals_df['SARIMA'].dropna(), seasonality)
 
+        SARIMA_model_final = statsmodels.tsa.statespace.sarimax.SARIMAX(endog=data['Value'],
+                                                                  order = SARIMA_AIC_test.order,
+                                                                  seasonal_order= SARIMA_AIC_test.seasonal_order,
+                                                                  trend='c',
+                                                                  enforce_invertibility=False)
+        SARIMA_fit_final = SARIMA_model_final.fit()
+        final_df['SARIMA'] = SARIMA_fit_final.predict(len(data),
+                                                      len(data)+forecast_timeframe-1,
+                                                      dynamic=False)
 
-
+        # Calculate final ensemble predictions
+        final_df['Ensemble'] = final_df.mean(axis=1)
+        final_tab = final_df['Ensemble'].to_frame()
 
 
         # Generate forecast line plots
@@ -100,12 +127,18 @@ def home():
                                    fit_df.index.array,fit_df['SARIMA'],
                                    forecast_df.index.array,forecast_df['SARIMA'])
 
+        final_img = processing.plot_final(data.index,data['Value'],
+                                          final_df['Naive'],final_df['ETS'],final_df['SARIMA'],final_df['Ensemble'],
+                                          final_df.index)
+
         return render_template('view.html',
                                tab=data.to_html(classes='onlyone'),
+                               tab_final=final_tab.to_html(classes='onlyone'),
                                tab5=accuracy_df.to_html(classes='onlyone'),
                                image=naive_img.decode('utf8'),
                                image2=ETS_img.decode('utf8'),
                                image3=SARIMA_img.decode('utf8'),
+                               image4=final_img.decode('utf8'),
                                tab2=naive_residual_checks_table.to_html(classes='onlyone',index=False),
                                tab3=ETS_residual_checks_table.to_html(classes='onlyone', index=False),
                                tab4=SARIMA_residual_checks_table.to_html(classes='onlyone', index=False)
@@ -124,6 +157,7 @@ def home():
             </body>
         </html>
     '''
+
 
 
 

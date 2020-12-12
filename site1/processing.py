@@ -12,10 +12,9 @@ from scipy.stats import jarque_bera
 import statsmodels.api as statsmodels
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
-from pandas.plotting import register_matplotlib_converters
-register_matplotlib_converters()
 
-'''Defining mean average percentage error'''
+
+# Define mean percentage
 def MAPE(y_obs, y_pred):
     y_obs = numpy.array(y_obs)
     y_pred = numpy.array(y_pred)
@@ -33,17 +32,17 @@ def accuracy(y_obs,y_pred):
     maperror = numpy.round(MAPE(y_obs,y_pred),1)
     return maperror, rmserror
 
-'''Calculate naive seasonal forecast by taking the last seasonal cycle and replicating it over the forecast_horizon'''
-def seasonal_naive(training_data,seasonal_period,forecast_horizon):
+'''Calculate naive seasonal forecast by taking the last seasonal cycle and replicating it over the forecast_timeframe'''
+def seasonal_naive(training_data,seasonal_period,forecast_timeframe):
     latest_season = training_data.iloc[-seasonal_period:]
-    repetitions = numpy.int(numpy.ceil(forecast_horizon/seasonal_period))
+    repetitions = numpy.int(numpy.ceil(forecast_timeframe/seasonal_period))
     forecast_array = numpy.tile(latest_season,repetitions)
-    forecast = pandas.Series(forecast_array[:forecast_horizon])
+    forecast = pandas.Series(forecast_array[:forecast_timeframe])
     fitted = training_data.shift(seasonal_period)
 
     return fitted, forecast
 
-'''
+''' 
     Calculate series of tests for residuals:
         Correlated if Ljung Box Test p-value <0.05
         Not normally distributed if Jarque Bera Normality Test <0.05
@@ -83,7 +82,7 @@ def residual_checks(residuals,seasonal_period):
 
 def plot_scatter(x,y):
     plot.clf()
-    plot.scatter(x, y)
+    plot.scatter(x, y, alpha=0.5)
 
     img = BytesIO()
     plot.savefig(img, format='png')
@@ -106,3 +105,18 @@ def plot_line(train_x,train_y,test_x,test_y,fit_x,fit_y,forecast_x,forecast_y):
     img_png = base64.b64encode(img.getvalue())
     return img_png
 
+def plot_final(data_x,data_y,a_y,b_y,c_y,d_y,x):
+
+    plot.clf()
+    plot.plot(data_x, data_y, label = 'Observed', color='blue')
+    plot.plot(x,a_y, label = 'Naive',linestyle='--',marker = '.',color='Orange')
+    plot.plot(x,b_y, label = 'ETS',linestyle='--',marker = '.',color='Green')
+    plot.plot(x,c_y, label = 'SARIMA',linestyle='--',marker = '.',color='Red')
+    plot.plot(x,d_y, label = 'Final Ensemble',linestyle='--',marker = '.',color='blue')
+    plot.legend()
+
+    img = BytesIO()
+    plot.savefig(img, format='png')
+    img.seek(0)
+    img_png = base64.b64encode(img.getvalue())
+    return img_png
