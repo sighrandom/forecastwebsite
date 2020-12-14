@@ -1,39 +1,49 @@
+from flask import Flask, request, session, make_response, render_template, send_file
 
-# A very simple Flask Hello World app for you to get started with...
-
-from flask import Flask, request, session, make_response, render_template
-import processing
+import pmdarima
 import pandas
+import processing
 import statsmodels.api
 import numpy
-import pmdarima
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
-app.config["SECRET_KEY"] = 'warfhjwoiuj348'
 
 
 @app.route('/forecast', methods =["GET","POST"])
-def home():
 
+def home():
     # if method is post, then read the submitted file and calculate forecast results
     if request.method =="POST":
-
         # Read the file and initiate parameters for forecasting
-        input_file = pandas.read_csv(request.files.get('input'))
-        seasonality = 4
-        forecast_timeframe = 8
+        if request.form["action"] == "Use demo file":
+            input_file = pandas.read_csv('/home/leojyz/site1/data.csv')
+            date_col = 0
+            value_col = 1
+        if request.form["action"] == "Submit":
+            input_file = pandas.read_csv(request.files.get('input'))
+            date_col = int(request.form["date_column"]) - 1
+            value_col = int(request.form["value_column"]) - 1
 
-        # Retrieve only the Date and Value columns and set Date as Index
-#        date_col = int(request.form["date_column"])-1
-#        value_col = int(request.form["value_column"])-1
-        date_col = 0
-        value_col = 1
+        try:
+            forecast_timeframe = int(request.form["forecast_timeframe"])
+        except:
+            forecast_timeframe = 12
+
+        # Retrieve only the Date and Value columns and set Date as Index and set seasonality
         data = input_file[[input_file.columns[date_col], input_file.columns[value_col]]]
         data.columns = ['Date','Value']
         data['Date'] = pandas.to_datetime(data['Date'])
         data = data.set_index('Date')
         data.index.freq = pandas.infer_freq(data.index)
+        if data.index.freq == 'QS' or data.index.freq == 'Q':
+            seasonality = 4
+        elif data.index.freq == 'MS' or data.index.freq == 'M':
+            seasonality = 12
+        elif str(data.index.freq)[1] == 'W':
+            seasonality = 52
+        else:
+            seasonality = 12
 
         # Splitting the training and test datasets
         data_train_df = data.iloc[:-forecast_timeframe]
@@ -60,6 +70,7 @@ def home():
         naive_residual_checks_table = processing.residual_checks(residuals_df['Naive'].dropna(), seasonality)
 
         final_df['Naive'] = processing.seasonal_naive(data['Value'],seasonality,forecast_timeframe)[1].values
+
 
         # Compute ETS Log AdA forecast
         data_train_log = numpy.log(data_train_df['Value'])
@@ -130,7 +141,8 @@ def home():
         final_img = processing.plot_final(data.index,data['Value'],
                                           final_df['Naive'],final_df['ETS'],final_df['SARIMA'],final_df['Ensemble'],
                                           final_df.index)
-
+        
+        #Render webpage displaying data, final results and submodel tests
         return render_template('view.html',
                                tab=data.to_html(classes='onlyone'),
                                tab_final=final_tab.to_html(classes='onlyone'),
@@ -144,24 +156,32 @@ def home():
                                tab4=SARIMA_residual_checks_table.to_html(classes='onlyone', index=False)
                                )
 
+    #Render page for submitting inputs
     return '''
         <html>
             <body>
-                <p>Select the file that you want to calculate:</p>
+                <h>Input how many periods you want to forecast out:</h>
                 <form method="post" action="/forecast" enctype="multipart/form-data">
+                    <p>Forecast periods: <input name="forecast_timeframe"/></p>  
+                    <p>Submit data file to use:                    
+                    <p><input type="submit" name="action" value="Use demo file"/></p>
+                    <p>OR</p>                    
                     <p><input type="file" name="input"/></p>
                     <p>Date column number: <input name="date_column"/></p>
-                    <p>Value column number: <input name="value_column"/></p>
-                    <p><input type="submit" value="Submit"/></>
+                    <p>Value column number: <input name="value_column"/></p>  
+                    <p><input type="submit" name="action" value="Submit"/></p>
+                    <br>
+                    <p>Details of use:</p>
+                    <p>Only accepts csv file
+                    <br>Must have a column of dates and a column of values that you want to forecast
+                    <br>Please only submit quarterly or monthly dataseries, anything more frequent will run out of memory
+                    (I don't want to spend money on extra)</p>
                 </form>
             </body>
         </html>
     '''
 
-
-
-
-
+#Some other apps for learning purposes
 @app.route("/sumfile", methods=["GET","POST"])
 def sumfile_page():
     if request.method == "POST":
@@ -185,12 +205,7 @@ def sumfile_page():
     '''
 
 
-
-
-
-
 '''Sum page - to add up multiple different user supplied inputs'''
-
 @app.route("/sum", methods=["GET","POST"])
 def list_page():
     errors = ""
@@ -241,10 +256,7 @@ def list_page():
         </html>
     '''.format(errors=errors,previous=number_list)
 
-
-
 '''Average page - for finding the average of two numbers'''
-
 @app.route("/average", methods=["GET", "POST"])
 def average_page():
 
@@ -285,42 +297,3 @@ def average_page():
             </body>
         </html>
     '''.format(errors=errors)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

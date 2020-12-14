@@ -1,8 +1,7 @@
 <!doctype html>
 <html>
-
     <head>
-        <title>Let's hope this works</title>
+        <title>My little forecast app</title>
         <link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css') }}" />
     </head>
     <body>
@@ -12,57 +11,36 @@
             </div>
             <div id="content">
                 <div id="table">
-                    <h2>Loaded data</h2>
-                    {{ tab|safe }}
+                    <h2>Input data</h2>
+                    <p>{{ tab|safe }}</p>
                 </div>
-                <div id="graph">
-                    <h2>Final Forecast</h2>
-                    {{ tab_final|safe }}
-                    <img src="data:image/png;base64,{{ image4 }}"\>
+                <div id="outputs">
+                    <div id="final_output">
+                        <h2>Final Forecast</h2>
+                        <img src="data:image/png;base64,{{ image4 }}"\>
+                        {{ tab_final|safe }}
+                    </div>
+                    <div id="sub_models">
+                        <h2>Sub-model tests</h2>
+                        <p>{{ tab5|safe }}</p>
 
+                       <p> <h3>Naive seasonal</h3></p>
+                        {{ tab2|safe }}
+                            <img src="data:image/png;base64,{{ image }}"\>
 
+                        <h3>ETS(A,Ad,A) with log</h3>
+                        <p>{{ tab3|safe }}
+                            <img src="data:image/png;base64,{{ image2 }}"\></p>
 
-
-
-                </div>
-                <div id="models">
-                    <h2>Individual model tests</h2>
-                    <p>{{ tab5|safe }}</p>
-
-                    <h3>Naive seasonal</h3>
-                    <p>{{ tab2|safe }}
-                        <img src="data:image/png;base64,{{ image }}"\></p>
-
-                    <h3>ETS(A,Ad,A) with log</h3>
-                    <p>{{ tab3|safe }}
-                        <img src="data:image/png;base64,{{ image2 }}"\></p>
-
-                    <h3>SARIMA</h3>
-                    <p>{{ tab4|safe }}
-                        <img src="data:image/png;base64,{{ image3 }}"\></p>
-
-
+                        <h3>SARIMA</h3>
+                        <p>{{ tab4|safe }}
+                            <img src="data:image/png;base64,{{ image3 }}"\></p>
+                    </div>
                 </div>
             </div>
             <div id="footer">
                 Copyright &copy; 2020
-
-
-
             </div>
-
         </div>
-
-
-
-
-
-
-
-
     </body>
-
-
-
 </html>
-

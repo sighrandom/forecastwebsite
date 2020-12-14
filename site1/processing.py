@@ -6,34 +6,38 @@ from io import BytesIO
 import numpy
 import pandas
 import base64
-import statistics
-import scipy
 from scipy.stats import jarque_bera
-import statsmodels.api as statsmodels
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
 
 
 # Define mean percentage
 def MAPE(y_obs, y_pred):
+
     y_obs = numpy.array(y_obs)
     y_pred = numpy.array(y_pred)
+
     return numpy.mean(numpy.abs((y_obs-y_pred)/y_obs))*100
 
-'''Defining root mean square error'''
+# Define root mean square error
 def RMSE(y_obs,y_pred):
+
     y_obs = numpy.array(y_obs)
     y_pred = numpy.array(y_pred)
+
     return numpy.sqrt(numpy.mean((y_obs-y_pred)**2))
 
-'''Return RMSE and MAPE in a dataframe'''
+# Calculate the MAPE and RMSE for provided predictions and actuals
 def accuracy(y_obs,y_pred):
+
     rmserror = numpy.round(RMSE(y_obs,y_pred),1)
     maperror = numpy.round(MAPE(y_obs,y_pred),1)
+
     return maperror, rmserror
 
-'''Calculate naive seasonal forecast by taking the last seasonal cycle and replicating it over the forecast_timeframe'''
+#Calculate naive seasonal forecast by taking the last seasonal cycle and replicating it over the forecast_timeframe
 def seasonal_naive(training_data,seasonal_period,forecast_timeframe):
+
     latest_season = training_data.iloc[-seasonal_period:]
     repetitions = numpy.int(numpy.ceil(forecast_timeframe/seasonal_period))
     forecast_array = numpy.tile(latest_season,repetitions)
@@ -42,14 +46,12 @@ def seasonal_naive(training_data,seasonal_period,forecast_timeframe):
 
     return fitted, forecast
 
-''' 
-    Calculate series of tests for residuals:
-        Correlated if Ljung Box Test p-value <0.05
-        Not normally distributed if Jarque Bera Normality Test <0.05
-        Stationarity if AD Fuller p-value <0.05
-'''
-
+#Calculate series of tests for residuals and returns summary table:
+#        Correlated if Ljung Box Test p-value <0.05
+#        Not normally distributed if Jarque Bera Normality Test <0.05
+#        Stationary if AD Fuller p-value <0.05
 def residual_checks(residuals,seasonal_period):
+
     lags = min(len(residuals)/5,2*seasonal_period)
     residual_mean = numpy.mean(residuals)
     ljung_p_value = round(numpy.mean(acorr_ljungbox(x=residuals,lags=lags)[1]),3)
@@ -80,7 +82,9 @@ def residual_checks(residuals,seasonal_period):
 
     return residual_table
 
+# Generate scatter plot of two equal length series
 def plot_scatter(x,y):
+
     plot.clf()
     plot.scatter(x, y, alpha=0.5)
 
@@ -88,8 +92,10 @@ def plot_scatter(x,y):
     plot.savefig(img, format='png')
     img.seek(0)
     img_png = base64.b64encode(img.getvalue())
+
     return img_png
 
+# Generate standard train-fit and forecast-test charts
 def plot_line(train_x,train_y,test_x,test_y,fit_x,fit_y,forecast_x,forecast_y):
 
     plot.clf()
@@ -103,8 +109,10 @@ def plot_line(train_x,train_y,test_x,test_y,fit_x,fit_y,forecast_x,forecast_y):
     plot.savefig(img, format='png')
     img.seek(0)
     img_png = base64.b64encode(img.getvalue())
+
     return img_png
 
+# Generate final chart with each model predictors
 def plot_final(data_x,data_y,a_y,b_y,c_y,d_y,x):
 
     plot.clf()
@@ -119,4 +127,5 @@ def plot_final(data_x,data_y,a_y,b_y,c_y,d_y,x):
     plot.savefig(img, format='png')
     img.seek(0)
     img_png = base64.b64encode(img.getvalue())
+
     return img_png
